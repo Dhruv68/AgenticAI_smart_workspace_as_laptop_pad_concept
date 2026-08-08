@@ -41,11 +41,11 @@ The proposed hardware form factor is a thin desk/laptop mat containing an intera
 │                                                              │
 │       INTERACTIVE AI SURFACE             LAPTOP AREA         │
 │                                                              │
-│       Writing                         ┌───────────────┐       │
-│       Diagrams                        │               │       │
-│       Equations                       │    LAPTOP     │       │
-│       AI guidance                     │               │       │
-│       Visual annotations              └───────────────┘       │
+│       Writing                         ┌───────────────┐      │
+│       Diagrams                        │               │      │
+│       Equations                       │    LAPTOP     │      │
+│       AI guidance                     │               │      │
+│       Visual annotations              └───────────────┘      │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
