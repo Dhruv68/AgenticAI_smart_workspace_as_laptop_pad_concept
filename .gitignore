@@ -1,0 +1,10 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+data/sessions/*.json
+data/sessions/*.png
+!data/sessions/.gitkeep

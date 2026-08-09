@@ -1,0 +1,8 @@
+[project]
+name = "agentic-ai-workspace"
+version = "0.1.0"
+description = "AI-native visual workspace prototype with ink canvas and desktop screen analysis"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 110
