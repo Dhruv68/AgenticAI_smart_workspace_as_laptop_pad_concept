@@ -1,77 +1,94 @@
 # Agentic AI Smart Workspace — Python Prototype
 
-A software-first prototype of an **AI-native visual workspace**. It ports the core interaction from the original HTML canvas into a Python/PySide6 desktop app and adds a second mode for analyzing the active laptop screen.
+A software-first prototype of an **AI-native visual workspace**: a freehand ink
+canvas you can draw and write on, plus AI analysis of your laptop screen.
+Draw a problem, circle part of it, and ask the local vision model about it —
+or capture whatever app is behind the window and get workflow-aware analysis.
+
+Long-term, this same agent architecture is meant to run on a physical smart
+laptop pad (pen + touch surface). The desktop app comes first; the mat is
+another I/O surface for the same agent later.
 
 ## What works
 
-- Freehand ink canvas with mouse or stylus
-- Pressure-aware strokes when Qt receives tablet pressure
-- Pen, eraser, color, brush size
-- Region selection
-- Ask a multimodal AI about only the selected canvas region
-- Accept an AI response back into the canvas as a visible AI note
-- Dismiss responses and retain interaction history
-- Undo/redo
-- Save structured stroke/session history as JSON
-- Export the canvas to PNG
-- Capture and analyze the current/foreground laptop window
-- Local/offline text-to-speech for AI responses
-- API key stored locally in `.env`, never embedded in the UI source
+- Freehand ink canvas with mouse or stylus (pressure-aware where Qt reports it)
+- Pen, eraser, color, brush size; undo/redo
+- Region selection (`S`, then drag a rectangle)
+- Ask the vision model about only the selected region
+- Accept an AI response back into the canvas as a visible AI note, dismiss it,
+  or have it spoken aloud (local/offline TTS)
+- Save structured stroke/session history as JSON; export canvas to PNG
+- Capture and analyze the active laptop window (`Ctrl + Shift + A`)
+- Interaction history retained across the session
 
-## AI provider
+## AI provider: local-first
 
-The default provider is Google's Gemini Developer API using `gemini-2.5-flash-lite` because Google currently offers a free tier for supported Gemini API models. Free-tier limits and model availability can change.
+The default path runs the vision model **locally through Ollama** — canvas
+crops and screen captures go to `http://localhost:11434` and nowhere else.
+No API key required.
 
-The AI layer is isolated in `src/agentic_workspace/ai/gemini_client.py`, so another provider or a fully local VLM can replace it later.
+Recommended model: `qwen3-vl:4b` (~3.3 GB download) — the best size/quality
+tradeoff for this workload. `qwen3-vl:2b` (~1.9 GB) if your machine is light;
+`qwen3-vl:8b` (~6.1 GB) if you have RAM/VRAM to spare.
 
-## 1. Create environment
+The AI layer is isolated behind a provider interface, so a hosted model
+(e.g. Gemini) or a future on-device model can replace Ollama later without
+touching the UI.
 
-Windows PowerShell / Anaconda Prompt:
+## Setup
 
-```bash
-cd agentic_ai_workspace
+### 1. Install Ollama and pull a model
+
+Download Ollama from <https://ollama.com>, then:
+
+```powershell
+ollama pull qwen3-vl:4b
+ollama run qwen3-vl:4b
+```
+
+Type `hello`, confirm it replies, then `/bye`.
+
+### 2. Create the Python environment
+
+```powershell
+cd AgenticAI_smart_workspace_as_laptop_pad_concept
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-With Conda:
+(Or `conda create -n smart-workspace python=3.11 -y`.)
 
-```bash
-conda create -n smart-workspace python=3.11 -y
-conda activate smart-workspace
-pip install -r requirements.txt
+### 3. Configure
+
+```powershell
+copy .env.example .env
 ```
 
-## 2. Get the free API key
+Defaults in `.env`:
 
-Create a Gemini API key in Google AI Studio.
-
-Copy:
-
-```text
-.env.example
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3-vl:4b
+OLLAMA_TIMEOUT=180
 ```
 
-to:
+If the 4B model is too slow, `ollama pull qwen3-vl:2b` and set
+`OLLAMA_MODEL=qwen3-vl:2b`.
 
-```text
-.env
-```
+### 4. Run
 
-and set:
-
-```text
-GEMINI_API_KEY=YOUR_REAL_KEY
-```
-
-Never commit `.env` to GitHub.
-
-## 3. Run
-
-```bash
+```powershell
 python main.py
+```
+
+or double-click `run_windows.bat`.
+
+Smoke-test the vision path without the UI:
+
+```powershell
+python test_vision.py
 ```
 
 ## Main workflow
@@ -79,24 +96,31 @@ python main.py
 ### Canvas
 
 1. Draw a problem, equation, diagram, or notes.
-2. Click **Select** or press `S`.
-3. Drag a rectangle around a region.
-4. Ask a question such as `What am I missing?`.
-5. The selected region is sent to Gemini Vision.
-6. The response appears in the AI assistant panel.
-7. **Accept on canvas**, **Dismiss**, or **Speak**.
+2. Press `S` and drag a rectangle around a region.
+3. Ask a question (or leave it empty).
+4. The selected region is sent to the local vision model.
+5. **Accept on canvas**, **Dismiss**, or **Speak** the response.
 
 ### Laptop screen analysis
 
-Press:
+1. Put another app (browser, VS Code, Jupyter…) behind this window.
+2. Press `Ctrl + Shift + A`.
+3. The app briefly hides itself, captures the active window behind it, and the
+   vision model analyzes the screenshot locally.
+
+## Repo contents
 
 ```text
-Ctrl + Shift + A
+├── main.py                  # entry point (expects src/agentic_workspace)
+├── src/agentic_workspace/   # the PySide6 app package (push when ready)
+├── reference_canvas.html    # original HTML interaction prototype
+├── test_vision.py           # Ollama vision smoke test (qwen3-vl)
+├── img.jpg                  # sample image for the smoke test
+├── requirements.txt
+├── run_windows.bat
+├── .env.example             # copy to .env; never commit .env
+└── data/sessions/           # saved stroke/session history (git-ignored)
 ```
-
-The app captures the current foreground window on Windows (full screen fallback elsewhere), sends the image plus your question to Gemini, and returns workflow-aware analysis.
-
-This is the beginning of the Cursor-like desktop perception path.
 
 ## Architecture
 
@@ -111,7 +135,7 @@ This is the beginning of the Cursor-like desktop perception path.
                    ↓
              Visual Context
                    ↓
-             Gemini VLM
+            Vision Model (local)
                    ↓
             Workspace Agent
              /           \
@@ -123,111 +147,60 @@ This is the beginning of the Cursor-like desktop perception path.
        Session memory
 ```
 
-## Project structure
-
-```text
-agentic_ai_workspace/
-├── main.py
-├── requirements.txt
-├── .env.example
-├── reference_canvas.html
-├── data/
-│   └── sessions/
-└── src/agentic_workspace/
-    ├── app.py
-    ├── models.py
-    ├── ai/
-    │   ├── gemini_client.py
-    │   └── worker.py
-    ├── canvas/
-    │   └── canvas_widget.py
-    ├── screen/
-    │   └── capture.py
-    ├── storage/
-    │   └── session.py
-    ├── ui/
-    │   └── ask_dialog.py
-    └── voice/
-        └── tts.py
-```
-
 ## Important design decisions
 
 ### Structured ink, not just screenshots
 
-Every stroke is preserved as a list of timestamped points. This gives future versions access to **how** the user writes, not only the final pixels.
+Every stroke is preserved as a list of timestamped points. Future versions get
+access to **how** the user writes, not only the final pixels.
 
 ### Explicit AI before proactive AI
 
-V0 asks the AI only when the user selects a region or invokes screen analysis. Do not attempt continuous intervention until the perception and workspace-state layers are reliable.
+The app asks the model only when the user selects a region or invokes screen
+analysis. No continuous intervention until perception and workspace-state
+layers are reliable.
 
 ### Provider abstraction
 
-Do not couple the project to Gemini permanently. Later options include:
-
-- local Qwen-VL / Gemma vision model
-- Ollama-compatible multimodal model
-- Hugging Face Inference Providers
-- another hosted VLM
+Do not couple the project to one model host. Later options: local Qwen-VL /
+Gemma vision, Ollama-compatible multimodal, hosted inference providers.
 
 ### Privacy
 
-Screen screenshots and selected canvas images can contain sensitive information. Only analyze content the user explicitly asks to send. A future version should add local redaction and local models.
+Screenshots and canvas crops can contain sensitive information. Only analyze
+content the user explicitly sends. A future version should add local redaction.
 
 ## Next milestones
 
-### V0.2 — Desktop timeline
+- **V0.2 — Desktop timeline:** foreground-window changes, screenshots on
+  meaningful visual change, timestamps, session boundaries
+- **V0.3 — Structured screen understanding:** pixels + window metadata + OCR
+  instead of screenshot pixels alone
+- **V0.4 — Spatial overlay:** arrows/highlights over the user's current app
+- **V0.5 — Voice input:** push-to-talk ("Explain this.", "What changed?")
+- **V1 — Workspace memory:** persistent structured state — current task,
+  visual objects, accepted AI notes, app transitions
+- **Later — physical mat:** EMR pen + touch + paper-like display; the device
+  becomes another I/O surface for the same agent
 
-Track:
+## Troubleshooting
 
-- foreground-window changes
-- screenshots only after meaningful visual change
-- timestamps
-- task/session boundaries
+**"Ollama is not running"** — start Ollama from the Start menu, verify with
+`ollama list`.
 
-### V0.3 — Structured screen understanding
+**"model is not downloaded"** — `ollama pull qwen3-vl:4b`.
 
-Combine:
+**Model too slow / laptop gets hot** — drop to `qwen3-vl:2b` and update
+`OLLAMA_MODEL`.
 
-```text
-pixels + active-window metadata + OCR/UI Automation
-```
-
-instead of relying only on screenshot pixels.
-
-### V0.4 — Spatial desktop overlay
-
-Ask the VLM for a target region and display arrows/highlights directly over the user's current application.
-
-### V0.5 — Voice input
-
-Add push-to-talk so the user can say:
-
-> Explain this.
-
-> Show me where.
-
-> What changed?
-
-### V1 — Workspace memory
-
-Represent current task, visual objects, recent actions, accepted AI notes, and application transitions in a persistent structured state.
-
-### Later — physical mat
-
-Only after the desktop agent is useful should the same architecture receive:
-
-```text
-EMR pen + touch + paper-like display + physical smart mat
-```
-
-The physical device becomes another I/O surface for the same agent.
+**Better quality** — `qwen3-vl:8b`, if you have the RAM/VRAM.
 
 ## Security
 
-- Never hardcode API keys.
-- `.env` is ignored by Git.
-- Do not enable automatic clicking/typing until an explicit permission model exists.
+- Never hardcode API keys; never commit `.env` (it's git-ignored — keep it
+  that way).
+- Do not enable automatic clicking/typing until an explicit permission model
+  exists.
 - Treat screen capture as sensitive user data.
 
 ## Status
